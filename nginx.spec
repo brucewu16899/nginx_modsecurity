@@ -117,7 +117,7 @@ directories.
 %patch13 -p1
 %patch14 -p1
 %patch15 -p1
-
+%setup -q -b 2	
 
 %build
 
@@ -211,6 +211,8 @@ install -p -d -m 0700 %{buildroot}%{nginx_logdir}
 install -p -d -m 0755 %{buildroot}%{nginx_webroot}
 
 install -p -m 0644 %{SOURCE12} \
+    %{buildroot}%{nginx_confdir}
+install -p -m 0644 %{SOURCE17} \
     %{buildroot}%{nginx_confdir}
 install -p -m 0644 %{SOURCE100} \
     %{buildroot}%{nginx_webroot}
