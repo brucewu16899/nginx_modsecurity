@@ -1,0 +1,22 @@
+exporting patch:
+# HG changeset patch
+# User Roman Arutyunyan <arut@nginx.com>
+# Date 1453815978 -10800
+#      Tue Jan 26 16:46:18 2016 +0300
+# Branch stable-1.8
+# Node ID c36482d0a79fe0f2e1467f80ec2fbcd0a2d682c6
+# Parent  e9a4531a2a5dabb9bee93cb8b41f24b8aeeba504
+Resolver: fixed possible segmentation fault on DNS format error.
+
+diff -r e9a4531a2a5d -r c36482d0a79f src/core/ngx_resolver.c
+--- a/src/core/ngx_resolver.c	Mon Jan 25 21:58:21 2016 +0300
++++ b/src/core/ngx_resolver.c	Tue Jan 26 16:46:18 2016 +0300
+@@ -1292,7 +1292,7 @@
+         times = 0;
+ 
+         for (q = ngx_queue_head(&r->name_resend_queue);
+-             q != ngx_queue_sentinel(&r->name_resend_queue) || times++ < 100;
++             q != ngx_queue_sentinel(&r->name_resend_queue) && times++ < 100;
+              q = ngx_queue_next(q))
+         {
+             rn = ngx_queue_data(q, ngx_resolver_node_t, queue);

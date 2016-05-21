@@ -1,0 +1,68 @@
+exporting patch:
+# HG changeset patch
+# User Ruslan Ermilov <ru@nginx.com>
+# Date 1453816034 -10800
+#      Tue Jan 26 16:47:14 2016 +0300
+# Branch stable-1.8
+# Node ID 93d70d87914c350948ab701cc99569680320e198
+# Parent  dac6eda40475f08b7372159d78dad1e13cd5bc7f
+Resolver: limited CNAME recursion.
+
+Previously, the recursion was only limited for cached responses.
+
+diff -r dac6eda40475 -r 93d70d87914c src/core/ngx_resolver.c
+--- a/src/core/ngx_resolver.c	Tue Jan 26 16:46:59 2016 +0300
++++ b/src/core/ngx_resolver.c	Tue Jan 26 16:47:14 2016 +0300
+@@ -1981,24 +1981,40 @@
+ 
+         ngx_queue_insert_head(&r->name_expire_queue, &rn->queue);
+ 
+-        ctx = rn->waiting;
+-        rn->waiting = NULL;
+-
+-        if (ctx) {
+-
+-            for (next = ctx; next; next = next->next) {
+-                next->node = NULL;
+-            }
+-
+-            (void) ngx_resolve_name_locked(r, ctx, &name);
+-        }
+-
+         ngx_resolver_free(r, rn->query);
+         rn->query = NULL;
+ #if (NGX_HAVE_INET6)
+         rn->query6 = NULL;
+ #endif
+ 
++        ctx = rn->waiting;
++        rn->waiting = NULL;
++
++        if (ctx) {
++
++            if (ctx->recursion++ >= NGX_RESOLVER_MAX_RECURSION) {
++
++                /* unlock name mutex */
++
++                do {
++                    ctx->state = NGX_RESOLVE_NXDOMAIN;
++                    next = ctx->next;
++
++                    ctx->handler(ctx);
++
++                    ctx = next;
++                } while (ctx);
++
++                return;
++            }
++
++            for (next = ctx; next; next = next->next) {
++                next->node = NULL;
++            }
++
++            (void) ngx_resolve_name_locked(r, ctx, &name);
++        }
++
+         /* unlock name mutex */
+ 
+         return;
