@@ -7,6 +7,7 @@
 %global  nginx_datadir       %{_datadir}/nginx
 %global  nginx_logdir        %{_localstatedir}/log/nginx
 %global  nginx_webroot       %{nginx_datadir}/html
+%global  modsec_version      2.9.1
 
 # gperftools exist only on selected arches
 %ifarch %{ix86} x86_64 ppc ppc64 %{arm}
@@ -21,7 +22,7 @@
 Name:              nginx
 Epoch:             1
 Version:           1.6.3
-Release:           8%{?dist}
+Release:           8%{?dist}_modsec_%{modsec_version}
 
 Summary:           A high performance web server and reverse proxy server
 Group:             System Environment/Daemons
@@ -32,11 +33,13 @@ URL:               http://nginx.org/
 
 Source0:           http://nginx.org/download/nginx-%{version}.tar.gz
 Source1:           http://nginx.org/download/nginx-%{version}.tar.gz.asc
+Source2:           modsecurity-%{modsec_version}.tar.gz
 Source10:          nginx.service
 Source11:          nginx.logrotate
 Source12:          nginx.conf
 Source13:          nginx-upgrade
 Source14:          nginx-upgrade.8
+Source17:          mod_security.conf
 Source100:         index.html
 Source101:         poweredby.png
 Source102:         nginx-logo.png
@@ -68,6 +71,8 @@ BuildRequires:     pcre-devel
 BuildRequires:     perl-devel
 BuildRequires:     perl(ExtUtils::Embed)
 BuildRequires:     zlib-devel
+# Build reqs for mod_security
+BuildRequires:     httpd-devel libxml2-devel pcre-devel curl-devel lua-devel
 
 Requires:          nginx-filesystem = %{epoch}:%{version}-%{release}
 Requires:          GeoIP
@@ -77,6 +82,9 @@ Requires:          pcre
 Requires:          perl(:MODULE_COMPAT_%(eval "`%{__perl} -V:version`"; echo $version))
 Requires(pre):     nginx-filesystem
 Provides:          webserver
+
+# So we can install rules from pkg
+Provides: mod_security
 
 BuildRequires:     systemd
 Requires(post):    systemd
@@ -112,6 +120,19 @@ directories.
 
 
 %build
+
+# Build mod_security standalone module
+cd ../modsecurity-%{modsec_version}
+CFLAGS="%{optflags} $(pcre-config --cflags)" ./configure \
+        --enable-standalone-module \
+        --enable-shared
+make %{?_smp_mflags}
+
+# Build nginx with mod_security support
+cd ../%{name}-%{version}
+
+
+
 # nginx does not utilize a standard configure script.  It has its own
 # and the standard configure options cause the nginx configure script
 # to error out.  This is is also the reason for the DESTDIR environment
@@ -161,6 +182,7 @@ export DESTDIR=%{buildroot}
 %if 0%{?with_gperftools}
     --with-google_perftools_module \
 %endif
+    --add-module="../modsecurity-%{modsec_version}/nginx/modsecurity" \
     --with-debug \
     --with-cc-opt="%{optflags} $(pcre-config --cflags)" \
     --with-ld-opt="$RPM_LD_FLAGS -Wl,-E" # so the perl module finds its symbols
@@ -250,6 +272,7 @@ fi
 %config(noreplace) %{nginx_confdir}/mime.types.default
 %config(noreplace) %{nginx_confdir}/nginx.conf
 %config(noreplace) %{nginx_confdir}/nginx.conf.default
+%config(noreplace) %{nginx_confdir}/mod_security.conf
 %config(noreplace) %{nginx_confdir}/scgi_params
 %config(noreplace) %{nginx_confdir}/scgi_params.default
 %config(noreplace) %{nginx_confdir}/uwsgi_params
@@ -272,6 +295,10 @@ fi
 
 
 %changelog
+
+* Sat May 21 2016 Marco de Krijger <marcodekrijger@gmail.com>
+- Added modsecurity 2.9.1 module
+
 * Tue Jan 26 2016 Jamie Nguyen <jamielinux@fedoraproject.org> - 1:1.6.3-8
 - CVE-2016-0747: Insufficient limits of CNAME resolution in resolver
 - CVE-2016-0746: Use-after-free during CNAME response processing in resolver
